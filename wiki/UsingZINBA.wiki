@@ -1,0 +1,454 @@
+#summary How to use ZINBA
+<wiki:toc max_depth="2" />
+
+= Using ZINBA =
+A <a href="http://www.unc.edu/~nur2/zinbaweb/test_data.tgz">test dataset</a> has been created that corresponds to the example code given in each function used below.
+
+=Necessary file downloads=
+Before using ZINBA, you need two files before you can start your analysis, given below.
+
+==1. Genome Build==
+The build of the genome you are using in .2bit format, downloadable below. Also downloadable from the from the <a href=" http://hgdownload.cse.ucsc.edu/downloads.html">UCSC genome browser</a>. NOTE: YOUR DOWNLOADED BUILD MUST BE THE SAME BUILD THAT YOUR READS WERE MAPPED TO.
+||*Human*||*Mouse*||*Drosophila*||*C. Elegans*||*Yeast*||
+||<a href="http://hgdownload.cse.ucsc.edu/goldenPath/hg18/bigZips/hg18.2bit" >hg18</a>||<a href="http://hgdownload.cse.ucsc.edu/goldenPath/mm8/bigZips/mm8.2bit" >mm8</a>||<a href="http://www.bios.unc.edu/~nur2/dm3.2bit" >dm3</a>|| <a href="http://www.bios.unc.edu/~nur2/ce6.2bit">ce6</a> || <a href="http://hgdownload.cse.ucsc.edu/goldenPath/sacCer2/bigZips/sacCer2.2bit" >sacCer2</a>||
+||<a href="http://hgdownload.cse.ucsc.edu/goldenPath/hg19/bigZips/hg19.2bit" >hg19</a>||<a href="http://hgdownload.cse.ucsc.edu/goldenPath/mm9/bigZips/mm9.2bit" >mm9</a>|| ||<a href="http://hgdownload.cse.ucsc.edu/goldenPath/ce10/bigZips/ce10.2bit">ce10</a>|| <a href="http://hgdownload.cse.ucsc.edu/goldenPath/sacCer3/bigZips/sacCer3.2bit" >sacCer3</a>||
+
+
+==2. Mappability File==
+A mappability folder corresponding to your <u>sequencing read length</u> and <u>genome</u> (links to compressed files are below). These files were generated using code from <a href="www.gersteinlab.org/proj/PeakSeq">Peakseq </a>, developed by the Gerstein Lab. This file is used to derive final mappability score in ZINBA.
+
+||*Human*||*Mouse*||*Drosophila*||*C. Elegans*||*Yeast*||
+||<a href="http://www.bios.unc.edu/~nur2/map36.tgz" >hg18 36bp</a><br><a href="http://www.bios.unc.edu/~nur2/map50.tgz" >hg18 50bp</a> || ||<a href="http://www.bios.unc.edu/~nur2/map36_dm3.tgz" >dm3 36bp</a><br><a href="http://www.unc.edu/~nur2/map50_dm3.tgz" >dm3 50bp</a>||<a href="http://www.bios.unc.edu/~nur2/map36_ce4.tgz" >ce4 36bp</a><br><a href="http://www.bios.unc.edu/~nur2/map36_ce6.tgz" >ce6 36bp</a> ||<a href="http://zinba.googlecode.com/files/map36_sacCer2.tgz" >sacCer2 36bp</a><br><a href="http://zinba.googlecode.com/files/map50_sacCer2.tgz" >sacCer2 50bp</a> ||
+||<a href="http://www.bios.unc.edu/~nur2/map36_hg19.tgz" >hg19 36bp</a><br><a href="http://www.bios.unc.edu/~nur2/map50_hg19.tgz" >hg19 50bp</a> ||<a href="http://www.bios.unc.edu/~nur2/map36_mm9.tgz" >mm9 36bp</a><br><a href="http://www.bios.unc.edu/~nur2/map50_mm9.tgz" >mm9 50bp</a> || ||  <a href="http://zinba.googlecode.com/files/map36_ce10.tgz" >ce10 36bp</a><br><a href="http://zinba.googlecode.com/files/map50_ce10.tgz" >ce10 50bp</a> || <a href="http://zinba.googlecode.com/files/map36_sacCer3.tgz" >sacCer3 36bp</a><br><a href="http://zinba.googlecode.com/files/map50_sacCer3.tgz" >sacCer3 50bp</a>||
+
+
+=Preparing your files=
+# Unpack your downloaded mappability folder by changing to the directory it is located in and running the command below, where ## is the specific name/number corresponding to the file
+{{{
+wget http://www.bios.unc.edu/~nur2/map##.tgz
+tar -xzvf map##.tar.gz
+}}}
+# Enter R and feed the unpacked mappability folder to the generateAlignability() function to generate your alignability directory. You do not need to compute this again unless you are running samples mapped with different alignability thresholds (athresh) or whose sequencing library has a different average fragment length (extension)
+{{{
+generateAlignability(
+  mapdir=, #mappability directory from unpacked mappability files
+  outdir=, #directory for processed files, used later in analysis
+  athresh=, #number of hits per read allowed during mapping process
+  extension=, #average fragment library length
+  twoBitFile=, #path to downloaded genome build file in .2bit format
+)
+}}}
+# Run the basealigncount function to generate the basecount file needed to obtain exact peak boundaries through peak refinement. If peak refinement is not desired then this step can be skipped. Otherwise, this should be generated for each set of sample reads you are analyzing. In most cases the unrefined estimates should be sufficient.
+{{{
+basealigncount(
+  inputfile=, #mapped sample reads
+  outputfile=, # output path
+  extension=, #average fragment library length
+  filetype=, #either "bed", "bowtie", or "tagAlign"
+  twoBitFile=, #path to downloaded genome build file in .2bit format
+)
+}}}
+
+
+=Analyze your Data=
+==Input Formats==
+Three input formats are allowed for ZINBA:
+
+*BED*: The first [http://genome.ucsc.edu/FAQ/FAQformat.html#format1 6 fields] of the BED format
+  * Chromosome (has to match naming in genome build!)
+  * Start
+  * Stop
+  * Name (can be any string/character)
+  * Score (can be set to 0 if N/A)
+  * Strand (can be set to + if unknown)
+
+*tagAlign*: Similar to the above BED format, except "Seq" replaces "Name". This format is sometimes found on the UCSC genome browser.
+  * Chromosome (has to match naming in genome build!)
+  * Start
+  * Stop
+  * Seq (sequence of mapped read)
+  * Score (can be set to 0)
+  * Strand (can be set to + if unknown)
+
+*bowtie*: The [http://bowtie-bio.sourceforge.net/manual.shtml#default-bowtie-output default output] from the Bowtie mapping software (.hits file).  *ZINBA ignores the last column* (comma-separated list of mismatch descriptors if mismatches are detected), so in total one should have 7 columns.  Also, *if there are spaces in the first column of your bowtie output file* (corresponding to read name) this will lead to importation errors in ZINBA version <= 2.01 .  
+
+In general, the chromosome name started with the prefix *chr* and the names must match how they are used in the genome build file, including case.  
+
+
+==ZINBA pipeline function==
+Usage for the ZINBA pipeline function
+{{{
+zinba(
+  refinepeaks=, #refine peaks? 1 for yes, 0 for no
+  seq=, #path to mapped experimental reads
+  input=, #path to mapped input reads if available (default is "none")
+  filetype=, #either 'bed', 'bowtie', or 'tagAlign'
+  threshold=, #FDR threshold, default is 0.05
+  align=, #path to alignability directory
+  numProc=, #number of CPUs to use, must be less than max available   (default 1)
+  twoBit=, #path to genome build in .2bit format
+  outfile=, #prefix for outputted files
+  extension=, #average fragment library length (size selected)
+ 
+  ###################
+  OPTIONAL PARAMETERS
+  ###################
+  
+  basecountfile=, #path to basecount file if refinepeaks is 1
+  broad=, #broad setting, TRUE or FALSE (default)
+  printFullOut=, #print original data with enrichment estimates, 1 for yes (more space required), 0 for no (default)
+  interaction=, #whether or not to considering interaction during model selection, TRUE (default) or FALSE
+  mode=, #either "peaks" for peak calling (default) or "CNV" for calling likely amplified CNV regions for reads in "seq" (input reads are best)
+  FDR= #either TRUE (default) or FALSE. If false, then uses posterior probability to threshold peaks using 1-threshold
+)
+}}}
+
+This function is optimized for speed and for ease of use, utilizing only input if it is available. A more flexible function run.zinba is available where more parameters can be specified.
+
+For ENCODE reporting purposes, the zinba() convenience function can convert posterior probability to q-values for FDR thresholding if one sets FDR=TRUE (more liberal results than the posterior probability-based results in ZINBA manuscript).
+
+==FAIRE-seq example==
+FAIRE data example: sequencing reads are 36 bp in length, and correspond to a fragment library length of 134 base pairs. The mappability file is unpacked, unloading the map36/ folder with the mappability files contained in it. We create the alignability directory at align_athresh4_extension134/, where our reads were mapped with an alignability threshold of matching up to 4 regions in the genome (otherwise they were filtered out). Download the necessary files, unpack your mappability directory, and create a directory to place your alignability files. Open a terminal and run the following, corresponding to the test unpacked dataset (a data/ directory will be created wherever you unpacked it).
+
+{{{
+#open a terminal and download the necessary files and test dataset.
+#on the mac, use curl -O instead of wget
+wget http://hgdownload.cse.ucsc.edu/goldenPath/hg18/bigZips/hg18.2bit
+wget http://www.bios.unc.edu/~nur2/map36.tgz
+wget http://www.unc.edu/~nur2/zinbaweb/test_data.tgz
+
+#unpack your mappability folder and test datasets
+tar -xzvf map36.tgz
+tar -xzvf test_data.tgz
+
+#create your directory to hold your alignability files. You can do this anyway you please, terminal command is below
+mkdir align_athresh4_extension134
+}}}
+
+Enter R and generate your alignability directory in addition to your basecount file
+{{{
+library(zinba)
+generateAlignability(
+  mapdir='map36/',
+  outdir='align_athresh4_extension134/',
+  athresh=4,
+  extension=134,
+  twoBitFile='hg18.2bit'
+)
+
+basealigncount(
+  inputfile='data/faireGM12878rep1chr22.taf',
+  outputfile='data/faireGM12878rep1chr22.basecount',
+  extension=134,
+  filetype='tagAlign',
+  twoBitFile='hg18.2bit'
+)
+
+}}}
+
+Now, run your zinba analysis. Here we start from our mapped sample reads and our prepared files, build the datasets needed for analysis, run the mixture regression model with the model selection specified, and then run a peak boundary refinement to capture exact peak boundaries. This function is our pipeline function, tying together the smaller functions that work on different parts of the analysis. Because input control was not available for this data, this function only considers the covariates GC content, mappability, and our estimate for local background to model the data, and utilizes the model selection procedure to select the best model for each component.
+
+{{{
+zinba(
+  align='align_athresh4_extension134/',
+  numProc=4,
+  seq='data/faireGM12878rep1chr22.taf',
+  basecountfile='data/faireGM12878rep1chr22.basecount',
+  filetype="tagAlign",
+  outfile="data/faire",
+  twoBit="hg18.2bit",
+  extension=134,
+  printFullOut=1,
+  refinepeaks=1,
+  broad=F,
+  input="none"
+)
+
+
+}}}
+
+==ChIP-seq example==
+ChIP-seq data example: sequencing reads are 36 bp in length, and correspond to a fragment library length of 200 base pairs. The mappability file is unpacked, unloading the map36/ folder with the mappability files contained in it. We create the alignability directory at align_athresh1_extension200/, where our reads were mapped with an alignability threshold of matching up to 1 region in the genome (otherwise they were filtered out). Download the necessary files, unpack your mappability directory, and create a directory to place your alignability files. Open a terminal and run the following, corresponding to the unpacked test dataset (a data/ directory will be created wherever you unpacked it).
+
+{{{
+#open a terminal and download the necessary files and test dataset.
+#on the mac, use curl -O instead of wget
+wget http://hgdownload.cse.ucsc.edu/goldenPath/hg18/bigZips/hg18.2bit
+wget http://www.bios.unc.edu/~nur2/map36.tgz
+wget http://www.unc.edu/~nur2/zinbaweb/test_data.tgz
+
+#unpack your mappability folder and test datasets
+tar -xzvf map36.tgz
+tar -xzvf test_data.tgz
+
+#create your directory to hold your alignability files. You can do this anyway you please, terminal command is below
+mkdir align_athresh1_extension200
+}}}
+
+Enter R and generate your alignability directory in addition to your basecount file.
+
+{{{
+library(zinba)
+  generateAlignability(
+  mapdir='map36/',
+  outdir='align_athresh1_extension200/',
+  athresh=1,
+  extension=200,
+  twoBitFile='hg18.2bit'
+)
+
+basealigncount(
+  inputfile='data/ctcfGM12878rep3chr22.taf',
+  outputfile='data/ctcfGM12878rep3chr22.basecount',
+  extension=200,
+  filetype='tagAlign',
+  twoBitFile='hg18.2bit' )
+}}}
+
+Now, run your zinba analysis. Here we start from our mapped sample reads and our prepared files, build the datasets needed for analysis, run the mixture regression model considering only input control, and then run a peak boundary refinement to capture exact peak boundaries.
+
+{{{
+zinba(
+  align='align_athresh1_extension200/',
+  numProc=4,
+  seq='data/ctcfGM12878rep3chr22.taf',
+  basecountfile='data/ctcfGM12878rep3chr22.basecount',
+  filetype="tagAlign",
+  outfile="data/ctcf",
+  twoBit="hg18.2bit",
+  extension=200,
+  printFullOut=1,
+  refinepeaks=1,
+  broad=F,
+  input='data/inputGM12878rep3chr22.taf'
+)
+}}}
+
+
+=Custom Analysis=
+Please note that this section and below uses ZINBA version 2.02 or later.  For versions < 2.02, you must manually set the peakconfidence level when FDR = F, for example peakfconfidence=0.95.  While the zinba() function offers ease of use, it doesn't offer much flexibility.  With the run.zinba() function, one can specify options that will allow for
+
+  * Faster processing by selecting larger window sizes
+  * The ability to bypass model selection if model formulas are previously known
+  * Specifying the distance threshold for merging windows
+  * Rerunning an analysis using an already built set of windows
+  * Calling multiple peaks within a broad region
+
+In general, the user has much more control over how their data is processed and analyzed.  With the variety of data types available, this is the best option for users who are looking for a custom analysis for their genome and data type.  We describe some of the optional parameters in more detail later on.
+
+{{{
+run.zinba(
+##Main parameters  
+  seq= # path to mapped experimental reads       
+  input= # path to mapped input reads if available (default is "none")       ,
+  filetype= # either 'bed', 'bowtie', or 'tagAlign'  
+  align= # path to alignability directory       
+  twoBit= # path to genome build in .2bit format       
+  winSize= # window size, default 500 bp       
+  offset=  # offset distance, default 0 bp     
+  extension= # average fragment library length (size selected)  
+  basecountfile= # path to basecount file if refinepeaks is 1       
+  selectmodel= # Either TRUE for model selection of FALSE (default, need to specify formulas)       
+  threshold= # FDR threshhold, default is 0.05    
+  FDR= #either TRUE (default) or FALSE.   
+  numProc= # number of CPUs to use, must be less than max available (default 1)       
+  winGap= # distance threshold for significant window merging (detault 0bp),
+  outfile= # path prefix for outputted files      
+    
+##Optional, can ignore/not specify  
+  #window building  
+  buildwin= # 1 to build windows (default), 0 to skip  
+  filelist= # if buildwin=0, path to .list file for existing set of built windows (usuall in same folder)   
+  cnvWinSize= # CNV window size, default 100000 bp.
+  cnvOffset=  # CNV window offset distance, default 2500 bp      
+    
+  #If Model selection  is FALSE  
+  formula= # background formula         
+  formulaE= # enrichment formula         
+  formulaZ= # zero-inflation formula   
+    
+  #If Model selection is TRUE  
+  selectchr= # one chromosome name to use for model selection, default "chr22"
+  selecttype= # either the abridged version "dirty" (default) or complete version "complete"     ,
+  selectcovs= # vector of covariate names (characters) to consider in model selection       
+  interaction= # consider two or three-way covariate interactions?  Default TRUE, otherwise FALSE.  
+    
+  #peak refinement  
+  refinepeaks= # 1 for refinement (default), 0 otherwise  
+  pWinSize= # sliding window size for local maximum detection (default 200 bp)         
+  pquant= # read overlap quantile threshold for local maximum selection (0.0-1.0 (default)     
+    
+  #miscellaneous options  
+  printFullOut= # 1 for printing full form of intermediate output, 0 otherwuse  
+  cleanup= # TRUE to delete all intermediate files, FALSE otherwise       
+  tol= # mixture regression EM algorithm convergence threshold, default 10^-5      
+  initmethod= # initialization method, default is "count", otherwise "quantile" or "pscl"       
+  diff= # experimental, 1 for two-sample comparison where input = path to second sample, othewise 0 (default)
+)
+}}}
+
+Notes on each parameter:
+|| *Parameter* || Note ||
+|| winSize || Selecting a larger window size increases speed of analysis but decreases resolution and sensitivity to detect enrichment.  Consider pairing with smaller offset distances to deal with potentially bisected peak regions.  The zinba() function uses 250bp  windows by default, but 500 - 1000 bp windows may be sufficient for one's analysis. ||
+|| offset || Smaller non-zero offset distances increase sensitivity but also increase computational builden.  An offset distance of at least half the window size is usually recommended. If a window size of 500 bp is specified, an offset distance of 250 bp will result in 2 sets of windows to be built - one corresponding to 0bp offset (original windows) and another set correponding to windows shifted 250 downstream from the first set.  ||
+|| cnvWinSize || Used to estimate the local background and amplifications due to potential CNVs.  Selecting a larger CNV window size decreases the sensitivity for local background estimates to be affected by enrichment regions.  However, larger windows may be less sensitive to amplifications in local background.  Default 100kb||
+|| cnvOffset || Smaller non-zero offset distances increase sensitivity of the local background estimate to amplifications in local background signal but may be more influenced by spikes in local enrichment||
+|| winGap || Specifies the distance threshold in bp to merge enriched window together.  Default is 0bp, where only adjacent significant windows or those overlapping from other offsets are merged together.  The broad=TRUE option from zinba() automatically sets winGap=5000.  ||
+|| FDR ||  FDR = TRUE specifies the model to use the FDR threshold rather than posterior probabilities.  This typically results in more liberal peak calls. If false, then uses posterior probability to threshold peaks using 1-threshold. ||   
+|| selectmodel || Specifying select model = FALSE skips the model selection process altogether and may save a significant amount of time (if you are considering many covariates for model selection).  However, one needs to specify the exact formulas that need to be used to model each component (see formula, formulaE, and formulaZ).  These can be taken from a previous zinba run where they are printed to the screen after the model selection process has finished.  ||
+|| formula || If selectmodel = FALSE, this must be specied to model the background regions of the genome.  Covariates include GC content "gcPerc", mappability "align_perc", input control "input_count", and local background covariate "exp_cnvwin_log".  The exact form should be written as exp_count ~ cov1 + cov2 +..., for example, exp~count ~ gcPerc + input_count,  Typically one should not mix input_count and exp_cnvwin_log.  If input is avaulable, using exp_count ~ input_count results in faster processing. If you do not wish to specify covariates, you can simply use exp_count~1, which utilizes only the intercept||
+|| formulaE || Same as the above except corresponds to enrichment component||
+|| formulaZ || Same as the above except corresponds to zero-inflated component||
+|| selectchr || If selectmodel=TRUE, then specify one chromsome that should be used for model selection.  Typeically this is a smaller chromsome to allow for more efficient model selection. The name of the chromsome should be exactly how it is represented in its genome build, for example chromsome 22 in hg18 is referred to as "chr22"||
+|| selecttype || Option "dirty" fixes the formulaZ at the intercept (no covariates) and then performs model selection for the background and enrichment components.  When this process is finished, then model selection proceeds for the zero inflated component given the selected background and enriched formulas.  Used by default and is much faster than option "complete", which does model selection in all components simultaneously.||
+|| selectcovs || Vector of covariate names to consider during model selection.  That is, all models that are tested will only consist of combinations of these covariates.  Potential covariates are "gcPerc", "align_perc", "exp_cnvwin_log", and "input_count" (see formula notes above).  If only GC content and input control are to be considered, usage would be selectcovs = c("gcPerc", "input_count"). It is not advised to mix input_count and the local background estimate covariate.  Model selection is much faster if only input control is considered (default in zinba() if input control exists).  ||
+|| interaction || If interaction=TRUE (default) then all two and three-way interaction terms between covariates specified in selectcovs are used.  If set to FALSE, then they are ignored and model selection is much faster buy may not result in the best model. ||
+|| pwinSize || Size of the sliding window to determine local maximums from read overlap data in the peak refinement steps.  Should be smaller than winSize, default is 200 bp.  Smaller sizes results in greater sensitivity to potential local maximums, but also may produce may spurious local maximums caused by small blips in enrichment.  Last window sizes smooth over smaller potential local maximums but may miss real peak regions.  ||
+|| pquant || Read overlap quantile threshold for candidate local maximums.  For example, the .9 quantile corresponds to the 90th percentile of read overlap values within a peak region, and any local maximums discovered with a height below this value are ignored.  Default value is 1.0, selecting only the global maximum in the merged region (one peak per broad region unless there is a tie ||  
+|| printFullOut || Controls printing options for files from the getsignwindows function where the enrichment posterior probability is calculated.  If 1, then the original data matrix is printing out (window coordinates, window read count, covariate values) are outputted along with the estimated enrichment.  This is helpful for basic exploratory analysis and plotting.  However, this also takes up much more disk space.  Setting this parameter to 0 only prints out the window coordinates and enrichment estimates. ||
+|| cleanup ||  If cleanup=TRUE, then all intermediate files found in the folder outfile_files/ is deleted after the analysis is complete, where outfile is the path specified for the outfile parameter.  This saves diskspace, but one may not getrefined peaks to try different winGaps or thresholds without running the model selection and/or mixture regression analysis again. ||
+
+==FAIRE-seq Example==
+This example mirrors that of what is used in the zinba() example and will produre the same exact output. 
+
+{{{
+run.zinba(
+  seq='data/faireGM12878rep1chr22.taf',  
+  input="none",
+  filetype="tagAlign",
+  twoBit="hg18.2bit",
+  winSize=250,
+  offset=125,
+  extension=134,
+  basecountfile='data/faireGM12878rep1chr22.basecount',
+  align='align_athresh4_extension134/',
+  selectmodel=T, 
+  selectchr = "chr22",
+  selecttype = "dirty",
+  selectcovs = c("gcPerc", "align_perc", "exp_cnvwin_log"), 
+  interaction= T, 
+  threshold=0.05,
+  refinepeaks=1, 
+  numProc=4,
+  winGap=0,   
+  FDR=TRUE,
+  outfile="data/faire",
+  printFullOut=1,
+  method="mixture"
+)
+}}}
+
+==ChIP-seq Example==
+This example mirrors that of what is used in the zinba() example and will produre the same exact output. 
+
+{{{
+run.zinba(
+  seq='data/ctcfGM12878rep3chr22.taf',  
+  input="data/inputGM12878rep3chr22.taf",
+  filetype="tagAlign",
+  twoBit="hg18.2bit",
+  winSize=250,
+  offset=125,
+  extension=200,
+  basecountfile='data/ctcfGM12878rep3chr22.basecount',
+  align='align_athresh1_extension200/',
+  selectmodel=T,
+  selectchr = "chr22",
+  selecttype = "complete",
+  selectcovs = c("input_count"), 
+  interaction= T, 
+  threshold=0.05,
+  refinepeaks=1, 
+  numProc=4,
+  winGap=0,   
+  FDR=TRUE,
+  outfile="data/ctcf",
+  printFullOut=1,
+  method="mixture"
+)
+}}}
+
+=Decreasing ZINBA Run Time=
+ZINBA was designed with high performance computing clusters in mind.  That is, the ability to utilize multiple computing cores for parallel processing.  On individual desktops however, the regular ZINBA parameters may pose a burden on the user in terms of computational time and resources.  This is worsened for desktops with limited memory (less than 3 GB) and a limited number of processors (less than quad-core CPUs).  The examples below show how to run zinba on the above data quickly.  However, for the greatest peak sensitivity and model stability it is recommended to use the original parameters or the zinba() function and at least running the model selection process. Increasing the window size to 1 KB and offset to 500 bp may be appropriate for broader data and will result in even faster processing. 
+
+FAIRE, using model selection but ignoring interaction ( 10x faster than default) 
+{{{
+run.zinba(
+  seq='data/faireGM12878rep1chr22.taf',  
+  input="none",
+  filetype="tagAlign",
+  twoBit="hg18.2bit",
+  winSize=500,
+  offset=250,
+  extension=134,
+  basecountfile='data/faireGM12878rep1chr22.basecount',
+  align='align_athresh4_extension134/',
+  selectmodel=T, 
+  selectchr = "chr22",
+  selecttype = "dirty",
+  selectcovs = c("gcPerc", "align_perc", "exp_cnvwin_log"), 
+  interaction= F, 
+  threshold=0.05,
+  refinepeaks=1, 
+  numProc=4,
+  winGap=0,   
+  FDR=TRUE,
+  outfile="data/faire",
+  printFullOut=1,
+  method="mixture"
+)
+}}}
+
+FAIRE, skipping model selection ( 60x faster than default): 
+{{{
+run.zinba(
+  seq='data/faireGM12878rep1chr22.taf',  
+  input="none",
+  filetype="tagAlign",
+  twoBit="hg18.2bit",
+  winSize=500,
+  offset=250,
+  extension=134,
+  basecountfile='data/faireGM12878rep1chr22.basecount',
+  align='align_athresh4_extension134/',
+  selectmodel=F, 
+  formula= exp_count ~ gcPerc + align_perc + exp_cnvwin_log,
+  formulaE= exp_count ~ gcPerc + align_perc + exp_cnvwin_log,
+  formulaZ= exp_count ~ gcPerc + align_perc + exp_cnvwin_log,
+  threshold=0.05,
+  refinepeaks=1, 
+  numProc=4,
+  winGap=0,   
+  FDR=TRUE,
+  outfile="data/faire",
+  printFullOut=1,
+  method="mixture"
+)
+}}}
+
+ChIP-seq, ignoring model selection (fastest) 
+{{{
+run.zinba(
+  seq='data/ctcfGM12878rep3chr22.taf',  
+  input="data/inputGM12878rep3chr22.taf",
+  filetype="tagAlign",
+  twoBit="hg18.2bit",
+  winSize=500,
+  offset=250,
+  extension=200,
+  basecountfile='data/ctcfGM12878rep3chr22.basecount',
+  align='align_athresh1_extension200/',
+  selectmodel=F,
+  formula= exp_count ~ input_count,
+  formulaE= exp_count ~ input_count,
+  formulaZ= exp_count ~ input_count, 
+  threshold=0.05,
+  refinepeaks=1, 
+  numProc=4,
+  winGap=0,   
+  FDR=TRUE,
+  outfile="data/ctcf",
+  printFullOut=1,
+  method="mixture"
+)
+}}}
